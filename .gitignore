@@ -1,0 +1,63 @@
+# =============================================================================
+#  .gitignore — Gaza Strip Conflict Analysis (Sat_Com)
+# =============================================================================
+
+# ── Python Environment ────────────────────────────────────────────────────────
+tf_env/
+venv/
+.venv/
+env/
+*.egg-info/
+__pycache__/
+*.py[cod]
+*.so
+
+# ── Jupyter / IPython ─────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb_metadata
+
+# ── GEE API Cache ─────────────────────────────────────────────────────────────
+cache/
+
+# ── Large Datasets & Spatial Files ────────────────────────────────────────────
+*.tif
+*.gdb/
+*.gdb
+*.gpkg
+*.geojson
+*.shp
+*.shx
+*.dbf
+*.prj
+raw_data/
+UNOSAT_*/
+
+# ── Generated ML Outputs ──────────────────────────────────────────────────────
+# (keep source-controlled figures but ignore re-generatable model artifacts)
+outputs/*.pkl
+outputs/*.keras
+outputs/*.npy
+outputs/*.tif
+# Uncomment below to also ignore all PNGs (they're large):
+# outputs/*.png
+
+# ── Reports & Notebooks Output ────────────────────────────────────────────────
+*.html
+
+# ── NumPy arrays (intermediate feature stacks) ────────────────────────────────
+*.npy
+*.npz
+
+# ── OS / Editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# ── Secrets / Auth ────────────────────────────────────────────────────────────
+.env
+*.json.secret
+credentials.json
+token.json
