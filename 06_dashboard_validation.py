@@ -111,14 +111,10 @@ with rasterio.open(os.path.join(OUT, 'DamageMap_Final.tif')) as src:
     rf_map = src.read(1).astype(np.float32)
 
 # ── CNN results — reconstruct from the keras model + saved test split ────
-#    We re-derive confusion matrix & metrics by re-sampling patches so the
-#    dashboard is self-contained without needing training to re-run.
-#    The CNN .keras model is loaded and evaluated on fresh patches.
 try:
     import tensorflow as tf
     cnn_model = tf.keras.models.load_model(os.path.join(OUT, 'cnn_model.keras'))
 
-    # Re-extract a representative test patch set (same seed as script 04)
     PATCH, STEP, MAX_PC = 32, 16, 2000
     HALF = PATCH // 2
     n_bands = bands_stack.shape[2]
@@ -144,7 +140,6 @@ try:
     X_cnn_all = np.array(patches_list, dtype=np.float32)
     y_cnn_all = np.array(patch_labels_list, dtype=np.int32)
 
-    # Normalise (same as script 04)
     for b in range(n_bands):
         lo = np.percentile(X_cnn_all[:, :, :, b], 2)
         hi = np.percentile(X_cnn_all[:, :, :, b], 98)
@@ -236,7 +231,6 @@ print("\n[2/4] Building 9-panel dashboard figure...")
 fig = plt.figure(figsize=(FIG_W, FIG_H), facecolor='#1a252f')
 fig.patch.set_facecolor('#1a252f')
 
-# Overall title
 fig.text(0.5, 0.975,
          'Gaza Strip — Multi-Sensor Conflict Analysis: Final Validation Dashboard',
          ha='center', va='top', fontsize=17, fontweight='bold',
@@ -254,7 +248,6 @@ gs = gridspec.GridSpec(
     hspace=0.38, wspace=0.28
 )
 
-# ── Panel colour cycle (dark-themed axes) ─────────────────────────────────
 AX_BG   = '#1e2d3d'
 TICK_C  = '#bdc3c7'
 GRID_C  = '#2c3e50'
@@ -307,12 +300,10 @@ add_metric_badge(ax1, f'Acc={rf_acc*100:.1f}%  κ={rf_kappa:.3f}  F1={rf_f1:.3f}
 ax2 = fig.add_subplot(gs[0, 2])
 dark_ax(ax2)
 
-# Recompute RF confusion matrix from saved model on a fresh pixel sample
 try:
-    flat_all  = np.nan_to_num(bands_stack.reshape(-1, bands_stack.shape[2]))
+    flat_all   = np.nan_to_num(bands_stack.reshape(-1, bands_stack.shape[2]))
     flat_s_all = rf_scaler.transform(flat_all)
 
-    # Sample ~4000 pixels per class for CM display (fast)
     RNG = np.random.default_rng(42)
     idx_sample, y_true_sample = [], []
     for cls in range(4):
@@ -330,14 +321,12 @@ except Exception:
                       [  60,  310, 4720, 260],
                       [  20,   90, 280, 4890]])
 
-# Normalise for display
 cm_rf_norm = cm_rf.astype(float) / cm_rf.sum(axis=1, keepdims=True)
 short_names = ['No Dmg', 'Minor', 'Mod', 'Severe']
 sns.heatmap(cm_rf_norm, annot=True, fmt='.2f', cmap='Blues',
             xticklabels=short_names, yticklabels=short_names,
             linewidths=0.4, ax=ax2, cbar=True,
-            annot_kws={'size': 8},
-            linecolor='#2c3e50')
+            annot_kws={'size': 8}, linecolor='#2c3e50')
 ax2.tick_params(labelsize=8, colors=TICK_C)
 ax2.set_ylabel('True',      fontsize=9, color=TICK_C)
 ax2.set_xlabel('Predicted', fontsize=9, color=TICK_C)
@@ -360,7 +349,6 @@ bar_colors    = [C_RED if v == rf_fi.max() else C_BLUE for v in fi_sorted]
 bars = ax3.barh(names_sorted, fi_sorted, color=bar_colors, edgecolor='none', height=0.65)
 ax3.axvline(1/len(FEAT_NAMES), color=C_ORANGE, linestyle='--',
             linewidth=1.2, alpha=0.8, label='Random baseline')
-# Value labels
 for bar, val in zip(bars, fi_sorted):
     ax3.text(val + 0.002, bar.get_y() + bar.get_height()/2,
              f'{val:.3f}', va='center', ha='left',
@@ -372,7 +360,7 @@ style_ax(ax3, 'Panel 4 — RF Feature Importance\n(Red = most important predicto
 add_metric_badge(ax3, f'{len(rf_fi)} features  ·  500 trees')
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PANEL 4 — CNN Training Curves (loaded from saved image or re-plotted)
+# PANEL 4 — CNN Training Curves
 # ═══════════════════════════════════════════════════════════════════════════
 ax4 = fig.add_subplot(gs[1, 1])
 dark_ax(ax4)
@@ -383,13 +371,12 @@ if cnn_train_img is not None:
     style_ax(ax4, f'Panel 5 — CNN Training & Validation Curves\nAcc={cnn_acc*100:.1f}%  κ={cnn_kappa:.3f}  F1={cnn_f1:.3f}')
     add_metric_badge(ax4, '60 epochs · EarlyStopping · ReduceLR')
 else:
-    # Synthetic representative curves if image missing
     ep  = np.arange(1, 61)
     trn = 0.55 + 0.35 * (1 - np.exp(-ep / 12)) + np.random.default_rng(0).normal(0, 0.01, 60)
     val = 0.50 + 0.35 * (1 - np.exp(-ep / 15)) + np.random.default_rng(1).normal(0, 0.015, 60)
     trn = np.clip(trn, 0, 1); val = np.clip(val, 0, 1)
-    ax4.plot(ep, trn, color=C_BLUE,   linewidth=2, label='Train Accuracy')
-    ax4.plot(ep, val, color=C_GREEN,  linewidth=2, label='Val Accuracy', linestyle='--')
+    ax4.plot(ep, trn, color=C_BLUE,  linewidth=2, label='Train Accuracy')
+    ax4.plot(ep, val, color=C_GREEN, linewidth=2, label='Val Accuracy', linestyle='--')
     ax4.axhline(cnn_acc, color=C_RED, linewidth=1, linestyle=':', alpha=0.7,
                 label=f'Test Acc={cnn_acc*100:.1f}%')
     ax4.set_xlabel('Epoch'); ax4.set_ylabel('Accuracy')
@@ -430,7 +417,6 @@ bars6 = ax6.bar(x, nlpdi_vals, color=C_BLUE, alpha=0.75, width=0.6, label='NLPDI
 line6,= ax6r.plot(x, ocha_idp, color=C_RED, linewidth=2.2, marker='o',
                   markersize=5, label='OCHA IDP (×1000)')
 
-# Peak annotation
 peak_idx = int(np.argmax(nlpdi_vals))
 ax6.annotate(f'Peak\n{months_lbl[peak_idx]}\n{nlpdi_vals[peak_idx]:.1f}%',
              xy=(peak_idx, nlpdi_vals[peak_idx]),
@@ -439,12 +425,11 @@ ax6.annotate(f'Peak\n{months_lbl[peak_idx]}\n{nlpdi_vals[peak_idx]:.1f}%',
              arrowprops=dict(arrowstyle='->', color='white', lw=1))
 
 ax6.set_xticks(x)
-ax6.set_xticklabels(months_lbl, rotation=40, ha='right',
-                    fontsize=7.5, color=TICK_C)
-ax6.set_ylabel('NLPDI (%)',            fontsize=9, color=C_BLUE)
-ax6r.set_ylabel('Displaced (×1000)',   fontsize=9, color=C_RED)
-ax6.tick_params(axis='y', labelcolor=C_BLUE,  labelsize=8)
-ax6r.tick_params(axis='y', labelcolor=C_RED,  labelsize=8)
+ax6.set_xticklabels(months_lbl, rotation=40, ha='right', fontsize=7.5, color=TICK_C)
+ax6.set_ylabel('NLPDI (%)',           fontsize=9, color=C_BLUE)
+ax6r.set_ylabel('Displaced (×1000)',  fontsize=9, color=C_RED)
+ax6.tick_params(axis='y', labelcolor=C_BLUE, labelsize=8)
+ax6r.tick_params(axis='y', labelcolor=C_RED, labelsize=8)
 ax6.set_ylim(0, 65); ax6r.set_ylim(0, 2400)
 ax6r.spines['right'].set_edgecolor(C_RED)
 ax6.legend([bars6, line6], ['NLPDI (%)', 'OCHA IDP (×1000)'],
@@ -460,14 +445,13 @@ ax7 = fig.add_subplot(gs[2, 1])
 dark_ax(ax7)
 
 x7 = np.arange(len(future))
-ax7.plot(x7, forecast_A, color=C_GREEN,  linewidth=2.4, marker='^',
-         markersize=9, label='Scenario A — Recovery',  zorder=3)
-ax7.plot(x7, forecast_B, color=C_RED,    linewidth=2.4, marker='v',
+ax7.plot(x7, forecast_A, color=C_GREEN, linewidth=2.4, marker='^',
+         markersize=9, label='Scenario A — Recovery', zorder=3)
+ax7.plot(x7, forecast_B, color=C_RED,   linewidth=2.4, marker='v',
          markersize=9, label='Scenario B — Continued Conflict', zorder=3)
 ax7.fill_between(x7, forecast_A, forecast_B,
                  alpha=0.2, color='yellow', label='Divergence Zone')
 
-# Divergence annotations on last point
 ax7.annotate(f'{forecast_A[-1]:.2f}',
              xy=(x7[-1], forecast_A[-1]),
              xytext=(x7[-1] - 0.4, forecast_A[-1] + abs(forecast_A[-1]) * 0.08),
@@ -486,7 +470,7 @@ style_ax(ax7, f'Panel 8 — LSTM 6-Month NTL Forecast\nMAE={lstm_mae:.4f}  Lookb
 add_metric_badge(ax7, 'Scenario B = 55% suppressed amplitude')
 
 # ═══════════════════════════════════════════════════════════════════════════
-# PANEL 8 — Consolidated Metrics Summary Table
+# PANEL 8 — Consolidated Metrics Summary Table (DYNAMIC)
 # ═══════════════════════════════════════════════════════════════════════════
 ax8 = fig.add_subplot(gs[2, 2])
 ax8.set_facecolor(AX_BG)
@@ -495,27 +479,39 @@ for spine in ax8.spines.values():
     spine.set_edgecolor('#2c3e50')
 style_ax(ax8, 'Panel 9 — Consolidated Validation Metrics')
 
+def _status(passed, exceeded=False):
+    if passed and exceeded:
+        return '✅ Exceeded'
+    elif passed:
+        return '✅ Met'
+    else:
+        return '❌ Below target'
+
 rows = [
-    # Model, Metric, Target, Achieved, Status
-    ['Random Forest',  'Accuracy',         '>82%',   f'{rf_acc*100:.1f}%',  '✅ Exceeded'],
-    ['Random Forest',  "Cohen's κ",        '>0.75',  f'{rf_kappa:.3f}',     '✅ Met'],
-    ['Random Forest',  'F1 (macro)',        '>0.82',  f'{rf_f1:.3f}',        '✅ Met'],
-    ['CNN',            'Accuracy',         '>82%',   f'{cnn_acc*100:.1f}%', '✅ Exceeded'],
-    ['CNN',            "Cohen's κ",        '>0.75',  f'{cnn_kappa:.3f}',    '✅ Met'],
-    ['CNN',            'F1 (macro)',        '>0.82',  f'{cnn_f1:.3f}',       '✅ Met'],
-    ['NLPDI',          '|Pearson r|',       '>0.85',  f'{abs_r:.3f}',        '✅ Met'],
-    ['LSTM',           'MAE (norm.)',       '<0.08',  f'{lstm_mae:.4f}',     '✅ Met'],
+    ['Random Forest',  'Accuracy',    '>82%',  f'{rf_acc*100:.1f}%',
+     _status(rf_acc > 0.82,  rf_acc > 0.90)],
+    ['Random Forest',  "Cohen's κ",   '>0.75', f'{rf_kappa:.3f}',
+     _status(rf_kappa > 0.75)],
+    ['Random Forest',  'F1 (macro)',  '>0.82', f'{rf_f1:.3f}',
+     _status(rf_f1 > 0.82,   rf_f1 > 0.90)],
+    ['CNN',            'Accuracy',    '>82%',  f'{cnn_acc*100:.1f}%',
+     _status(cnn_acc > 0.82, cnn_acc > 0.90)],
+    ['CNN',            "Cohen's κ",   '>0.75', f'{cnn_kappa:.3f}',
+     _status(cnn_kappa > 0.75)],
+    ['CNN',            'F1 (macro)',  '>0.82', f'{cnn_f1:.3f}',
+     _status(cnn_f1 > 0.82,  cnn_f1 > 0.90)],
+    ['NLPDI',          '|Pearson r|', '>0.85', f'{abs_r:.3f}',
+     _status(abs_r > 0.85)],
+    ['LSTM',           'MAE (norm.)', '<0.08', f'{lstm_mae:.4f}',
+     _status(lstm_mae < 0.08)],
 ]
 
-col_labels = ['Model', 'Metric', 'Target', 'Achieved', 'Status']
-col_widths = [0.22, 0.20, 0.13, 0.18, 0.22]
-col_colors = ['#2c3e50'] * 5
+col_labels      = ['Model', 'Metric', 'Target', 'Achieved', 'Status']
+col_widths      = [0.22, 0.20, 0.13, 0.18, 0.22]
 row_colors_even = '#1e2d3d'
 row_colors_odd  = '#243447'
 
-n_rows = len(rows)
-n_cols = len(col_labels)
-row_h  = 0.082
+row_h    = 0.082
 header_y = 0.91
 start_y  = header_y - row_h
 
@@ -523,8 +519,7 @@ start_y  = header_y - row_h
 x_cursor = 0.01
 for j, (lbl, cw) in enumerate(zip(col_labels, col_widths)):
     ax8.text(x_cursor + cw / 2, header_y, lbl,
-             transform=ax8.transAxes,
-             ha='center', va='center',
+             transform=ax8.transAxes, ha='center', va='center',
              fontsize=9, fontweight='bold', color='white',
              bbox=dict(boxstyle='round,pad=0.2', facecolor='#1a5276',
                        edgecolor='none', alpha=0.95))
@@ -532,29 +527,32 @@ for j, (lbl, cw) in enumerate(zip(col_labels, col_widths)):
 
 # Data rows
 for i, row in enumerate(rows):
-    row_y = start_y - i * row_h
-    bg    = row_colors_odd if i % 2 else row_colors_even
+    row_y    = start_y - i * row_h
+    bg       = row_colors_odd if i % 2 else row_colors_even
     x_cursor = 0.01
     for j, (val, cw) in enumerate(zip(row, col_widths)):
         color = 'white'
-        if j == 4:  # Status column
+        if j == 4:
             color = C_GREEN if '✅' in val else C_RED
-        elif j == 3:  # Achieved
+        elif j == 3:
             color = '#58d68d'
         ax8.text(x_cursor + cw / 2, row_y, val,
-                 transform=ax8.transAxes,
-                 ha='center', va='center',
+                 transform=ax8.transAxes, ha='center', va='center',
                  fontsize=8.2, color=color,
                  bbox=dict(boxstyle='square,pad=0.15', facecolor=bg,
                            edgecolor='none', alpha=0.9))
         x_cursor += cw
 
-# All-pass summary badge
-ax8.text(0.5, 0.04,
-         '🎯  All 8 / 8 metrics met or exceeded targets',
+# Dynamic all-pass badge
+n_passed    = sum(1 for r in rows if '✅' in r[4])
+badge_color = '#1a7a4a' if n_passed == 8 else '#7a3a1a'
+badge_text  = (f'🎯  All {n_passed} / 8 metrics met or exceeded targets'
+               if n_passed == 8
+               else f'⚠️  {n_passed} / 8 metrics met — see red rows above')
+ax8.text(0.5, 0.04, badge_text,
          transform=ax8.transAxes, ha='center', va='bottom',
          fontsize=9.5, fontweight='bold', color='white',
-         bbox=dict(boxstyle='round,pad=0.4', facecolor='#1a7a4a',
+         bbox=dict(boxstyle='round,pad=0.4', facecolor=badge_color,
                    edgecolor='none', alpha=0.9))
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -581,7 +579,7 @@ with open(csv_path, 'w', newline='') as f:
 print(f"  ✅ Saved: {csv_path}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TERMINAL SUMMARY
+# TERMINAL SUMMARY (dynamic)
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n" + "=" * 65)
 print("  FINAL VALIDATION SUMMARY")
@@ -591,7 +589,7 @@ print("  " + "-" * 62)
 for row in rows:
     print(f"  {row[0]:<18} {row[1]:<18} {row[2]:<10} {row[3]:<12} {row[4]}")
 print("=" * 65)
-print(f"  🎯  All 8 / 8 metrics PASSED")
+print(f"  🎯  {n_passed} / 8 metrics PASSED")
 print(f"  📊  Dashboard → {out_path}")
 print(f"  📄  CSV       → {csv_path}")
 print("=" * 65)
