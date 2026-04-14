@@ -1,7 +1,6 @@
 # Gaza Strip Conflict Analysis — Multi-Sensor Remote Sensing Pipeline
 
 **D1+TD1 Satellite Remote Sensing | Winter 2025–26**
-**Assignment Due: 8 March 2026 **
 
 ---
 
